@@ -1,0 +1,368 @@
+#
+# CoinSpark asset tracking server 1.0 beta
+# 
+# Copyright (c) 2014 Coin Sciences Ltd - coinspark.org
+# 
+# Distributed under the AGPLv3 software license, see the accompanying 
+# file COPYING or http://www.gnu.org/licenses/agpl-3.0.txt
+#
+
+
+GENERAL INFORMATION
+==================================================
+
+Every CoinSpark asset has a server which tracks its movements across bitcoin
+transactions.
+
+The server responds to queries from CoinSpark wallets regarding those movements.
+This lowers the computational requirements for end user wallets, which would
+otherwise need to store the entire bitcoin blockchain, and perform a potentially
+vast number of calculations for newly received assets.
+
+By default, new assets issued by the asset creation form use our free servers
+assets1.coinspark.org, assets2.coinspark.org and assets3.coinspark.org, which
+provide 3-way geographic redundancy and automatically track every CoinSpark
+asset created. If you are comfortable relying on our tracking servers, you need
+not take any further steps.
+
+If you prefer to run your own tracking server/s, we provide a free open source
+solution here. The address of the tracking server/s for a particular asset can
+be changed at any time on that asset's web page, so you need not make a final
+decision now.
+
+To be clear, while wallets rely on the responses given by asset tracking
+servers, these servers cannot change the 'truth' about where the asset lies.
+This is determined solely by the data stored in the blockchain and the asset’s
+contract. Asset trackers are simply a computational aide.
+
+The open source tracking server is named coinsparkd and written in C and PHP.
+
+
+CONTENTS
+==================================================
+
+1. System requirements
+2. Installing and configuring coinsparkd
+    2.1 Package installation
+        2.1.1 Ubuntu
+        2.1.2 CentOS
+    2.2 Installing coinsparkd
+    2.3 Configuring httpd
+3. Installing and configuring bitcoind (it bitcoind is installed locally)
+    3.1 Package installation
+        3.1.1 Ubuntu
+        3.1.2 CentOS
+    3.2 Installing and configuring bitcoind
+4. Starting and stopping bitcoind
+5. Running coinsparkd
+6. Configuring bitcoind and coinsparkd in startup script
+    6.1 Ubuntu
+    6.2 CentOS
+    
+
+1. System requirements
+==================================================
+
+Requirements for the asset server are as follows:
+
+ - Linux operating system such as CentOS, Ubuntu or Fedora. These instructions have been tested on Ubuntu x64 10.04, 12.04, 14.04 and CentOS x64 6.4, 6.5.
+
+ - Running copy of Bitcoin Core, also known as bitcoind. No GUI or bitcoin balance required.
+
+ - At least 8 GB of RAM.
+
+ - At least 40 GB of disk space, mostly for Bitcoin Core to store the blockchain. In addition every 10,000 blocks (2.5 months) coinsparkd saves a checkpoint which takes 2GB. Checkpoints can be removed manually.
+
+ - PHP 5 running under a regular web server such as Apache.
+
+ - PHP compiled with the --enable-shmop option, since the PHP script communicates with the compiled C process via shared memory.
+ 
+ - You need to know the asset reference of the asset you issued (see Assets panel of SparkBit).
+
+
+2. Installing and configuring coinsparkd
+==================================================
+
+2.1 Package installation
+==================================================
+
+2.1.1 Ubuntu
+--------------------------------------------------
+
+# Package installation:
+
+    sudo apt-get update
+    sudo apt-get install build-essential
+    sudo apt-get install apache2 php5
+    /etc/init.d/apache2 restart
+
+# Adding coinspark user:
+
+    sudo adduser coinspark
+    
+
+2.1.2 CentOS
+--------------------------------------------------
+
+    su
+
+# Package installation:
+
+    yum groupinstall "Development tools"
+    yum install httpd php
+    yum install wget
+    service httpd start
+    chkconfig httpd on
+
+# Adding coinspark user:
+
+    adduser coinspark
+    passwd coinspark
+
+
+2.2 Installing coinsparkd
+==================================================
+
+    su coinspark
+
+    cd
+    wget http://download.coinspark.org/coinsparkd-1.0-beta.tar.gz
+    tar xzf coinsparkd-*.tar.gz
+    cd ~coinspark/coinsparkd-*/coinsparkd
+    make
+    mkdir ~/bin
+    mv bin/coinsparkd ~/bin
+
+
+2.3 Configuring httpd
+==================================================
+
+    su root
+
+# for Ubuntu 12.04 and below:
+
+    mv /var/www/index.html /var/www/index-original.html
+    cp ~coinspark/coinsparkd-*/public_html/index.php /var/www/
+
+# for other distributions:
+
+    mv /var/www/html/index.html /var/www/html/index-original.html
+    
+    	[don't worry if you get an error message here]
+    	
+    cp ~coinspark/coinsparkd-*/public_html/index.php /var/www/html/
+    
+# Check the web server is working by entering the IP address or domain name of the
+  server in your browser. You should be shown an error about connecting.
+
+
+3. Installing and configuring bitcoind
+=========================================================================
+
+3.1 Package installation (assumes packages required for coinsparkd are already installed)
+=========================================================================================
+
+3.1.1 Ubuntu
+--------------------------------------------------
+
+    sudo apt-get install libssl-dev pkg-config 
+    sudo apt-get install libtool autotools-dev autoconf
+
+# for Ubuntu 12.04 and later:
+
+    sudo apt-get install libboost-all-dev
+
+
+3.1.2 CentOS
+--------------------------------------------------
+
+    su root
+
+    cd /usr/src
+    wget http://www.openssl.org/source/openssl-1.0.1g.tar.gz
+    tar -zxf openssl-1.0.1g.tar.gz
+    cd openssl-1.0.1g
+    ./config --prefix=/usr --openssldir=/usr/local/openssl shared
+    make
+    make test
+    make install
+    cd /usr/src
+    rm -rf openssl-1.0.1g.tar.gz
+    rm -rf openssl-1.0.1g
+
+    yum install boost-devel
+
+
+
+3.2 Installing and configuring bitcoind
+==================================================
+
+    su coinspark
+    cd
+
+# download the latest version of bitcoind
+
+    wget --no-check-certificate https://bitcoin.org/bin/0.9.2.1/bitcoin-0.9.2.1-linux.tar.gz
+    tar xzf bitcoin-0.9.2.1-linux.tar.gz
+
+# either use the pre-provided binary:
+
+    mkdir -p ~/bin
+    mv ~/bitcoin-0.9.2.1-linux/bin/64/* ~/bin
+
+# or compile bitcoind from the sources:
+
+    cd bitcoin-0.9.2.1-linux/src
+    tar xzf bitcoin-0.9.2.tar.gz
+    cd bitcoin-0.9.2
+    ./configure --disable-wallet
+    make
+    mv src/bitcoind src/bitcoin-cli ~/bin
+
+# set RPC user and password
+	
+    mkdir ~/.bitcoin
+    echo "rpcuser=bitcoinrpc" > ~/.bitcoin/bitcoin.conf
+    echo -n "rpcpassword=" >> ~/.bitcoin/bitcoin.conf
+    echo "Enter some completely random text to generate a bitcoin RPC password:" ; read input
+    echo $input | sha256sum | base64 | head -c 32 >> ~/.bitcoin/bitcoin.conf
+    echo >> ~/.bitcoin/bitcoin.conf
+    
+
+4. Starting and stopping bitcoind
+==================================================
+
+    su coinspark
+
+# to see usage
+
+    ~/bin/bitcoin-cli -?
+
+# to start bitcoind
+
+    ~/bin/bitcoind &
+    
+# to check bitcoind status (wait a few seconds after starting it)
+
+    ~/bin/bitcoin-cli getinfo
+
+# to stop bitcoind
+
+    ~/bin/bitcoind stop
+
+
+
+5. Running coinsparkd
+==================================================
+
+# to see usage:
+
+    ~/bin/coinsparkd
+
+# to start coinsparkd, substitute <asset-reference> for the asset ref shown in your wallet:
+
+    ~/bin/coinsparkd -asset=<asset-reference> start
+
+# to stop coinsparkd:
+
+    ~/bin/coinsparkd stop
+
+# Check coinsparkd is installed properly and running by entering the server's IP address or
+  domain name in your web browser. You should see a message about the server tracking an asset.
+
+# Additional options for coinsparkd:
+
+  -testnet               Use the bitcoin testnet network
+
+  -datadir=<data_path>   Default data directory is ~/.coinspark/assets/<asset-reference>.
+                         You can specify an alternative data directory.
+
+  -shmem=<shmem_key>     You may run several instances of coinsparkd to track several assets.
+                         Each instance creates its own database and opens a separate shared
+                         memory segment to communicate with PHP. Default is 12595 (0x3133).
+                         For different values, use ?k=<shmem_key> at the end of the asset
+                         tracking server address in the 'coinspark_tracker_url' field of the
+                         JSON asset specification on the asset web page.
+
+
+# Examples:
+
+# Start coinsparkd tracking asset with reference 123456-789012-345678:
+
+    ~/bin/coinsparkd -asset=123456-789012-345678 start
+    
+# Stop tracking server:
+
+    ~/bin/coinsparkd stop 
+    
+# Start coinsparkd tracking asset on testnet:
+
+    ~/bin/coinsparkd -asset=123456-789012-345678 -testnet start 
+
+# Start coinsparkd tracking asset, where ?k=12596 is added to the tracker URL:
+
+    ~/bin/coinsparkd -asset=345678-123456-789012 -shmem=12596 start
+
+
+5.1 Restoring a backup of coinsparkd's data
+==================================================
+
+The subdirectory 'backup' of the coinsparkd data directory (default ~/.coinspark/assets/<asset-reference>) contains copies of the full data directory for every 10,000th block. These checkpoint directories can be purged manually to save disk space.
+
+# To start from a specific checkpoint:
+
+    ~/bin/coinsparkd stop
+    cd ~/.coinspark/assets/<asset-reference>
+    rm blockchain.dat 
+    rm tracker*
+    rm -rf asset*
+    rm -rf *txouts
+    rm -rf coin*
+    rm -rf op_ret*
+    rm db.log 
+    cp -Rf backup/<block-number>/* .
+    ~/bin/coinsparkd start
+
+
+6. Configuring bitcoind and coinsparkd in startup script
+=====================================================================
+
+# Ensure you substitute <asset-reference> below with the correct asset reference.
+
+
+6.1 Ubuntu
+==================================================
+
+    su
+    mv /etc/rc.local /etc/rc.local.original
+    cat /etc/rc.local.original | grep -v "exit 0" > /etc/rc.local
+    echo "su coinspark -c \"/home/coinspark/bin/bitcoind &\"" >> /etc/rc.local
+    echo "su coinspark -c \"/home/coinspark/bin/coinsparkd -asset=<asset-reference> start\"" >> /etc/rc.local
+    echo "exit 0" >> /etc/rc.local
+    chmod +x /etc/rc.local
+
+
+6.2 CentOS
+==================================================
+
+    su root
+
+    echo "su coinspark -c \"/home/coinspark/bin/bitcoind &\"" >> /etc/rc.d/rc.local
+    echo "su coinspark -c \"/home/coinspark/bin/coinsparkd -asset=<asset-reference> start\"" >> /etc/rc.d/rc.local
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

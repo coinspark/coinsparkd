@@ -1,0 +1,61 @@
+#########################################################################
+#                     Pattern (Implicit) Rules                          #
+#########################################################################
+
+#------------------------------------------------------#
+# .cpp to .o rule                                      #
+# Compile *.cpp into $(PLATFORM)/$(BUILD_CONFIG)/*.o   #
+#------------------------------------------------------#
+
+$(OUTDIR)/%.o: %.cpp $(DEPS)
+	@echo " "
+	@echo ">>> Compiling $<"
+	@test -d $(OUTDIR) || $(mkdir_p) $(OUTDIR)
+	@$(CC) -c $(CPPFLAGS) $< -o $@
+
+$(COMDIR)/%.o: $(CS_COMMONDIR)/%.cpp $(COMDEPS) 
+	@echo " "
+	@echo ">>> Compiling $<"
+	@test -d $(COMDIR) || $(mkdir_p) $(COMDIR)
+	@$(CC) -c $(CPPFLAGS) $<  -o $@
+
+$(TRKDIR)/%.o: $(CS_TRACKERDIR)/%.cpp 
+	@echo " "
+	@echo ">>> Compiling $<"
+	@test -d $(TRKDIR) || $(mkdir_p) $(TRKDIR)
+	@$(CC) -c $(CPPFLAGS) $<  -o $@
+
+$(PRTDIR)/%.o: $(CS_PROTOCOLDIR)/%.c 
+	@echo " "
+	@echo ">>> Compiling $<"
+	@test -d $(PRTDIR) || $(mkdir_p) $(PRTDIR)
+	@$(CC) -c $<  -o $@
+
+$(UNXDIR)/%.o: $(CS_UNIXDIR)/%.cpp 
+	@echo " "
+	@echo ">>> Compiling $<"
+	@test -d $(UNXDIR) || $(mkdir_p) $(UNXDIR)
+	@$(CC) -c $(CPPFLAGS) $< -o $@
+
+
+#--------------------------------------------------------------#
+# .so from OBJS rule                                           #
+# Link OBJS into $(PLATFORM)/$(BUILD_CONFIG)/lib<libname>.so   #
+# and copy it to elaunchpad                                    #
+#--------------------------------------------------------------#
+$(OUTDIR)/%.so: $(OBJDIR_OBJS) $(UNXDIR_OBJS)
+	@echo ">>> Linking $@"
+	@$(LD) $(SHAREDFLAGS) -o $@ $(OBJDIR_OBJS) $(UNXDIR_OBJS) $(LIBS)
+	@test -d $(CS_LAUNCH_ROOT) || $(mkdir_p) $(CS_LAUNCH_ROOT)
+	@test -d $(CS_LAUNCHDIR) || $(mkdir_p) $(CS_LAUNCHDIR)
+	@$(CP) $@ $(CS_LAUNCHDIR)
+
+
+#------------------------------------#
+# clean rule                         #
+#------------------------------------#
+.PHONY: clean allproject
+
+clean::
+	-cd $(OUTDIR); rm -f *.o *.a *.d *.so $(TARGET_EXE)
+

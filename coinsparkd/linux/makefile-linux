@@ -1,0 +1,173 @@
+#===============================================================================
+#  Constants
+#===============================================================================
+PRODUCT_VERSION = 0_1_1_1
+
+ifeq ($(CSDIR),)
+    CSDIR = $(CURDIR)/..
+endif
+
+ifeq ($(PLATFORM),)
+    PLATFORM = linux
+endif
+
+ifeq ($(CSBLD),)
+    CSBLD = release64
+endif
+
+BUILD_BIT_PLAT = 64
+
+ifeq ($(CSBLD),debug64)
+    BUILD_BIT_PLAT = 64
+endif
+
+ifeq ($(CSBLD),debug32)
+    BUILD_BIT_PLAT = 32
+endif
+
+ifeq ($(CSBLD),release32)
+    BUILD_BIT_PLAT = 32
+endif
+
+CS_HOME_NAME        = coinsparkd
+PLATFORM_VER        = $(PLATFORM).$(shell uname -r)
+OUTDIR              = $(PLATFORM)_$(CSBLD)
+BINDIR              = $(CSDIR)/bin
+
+CS_LAUNCH_ROOT      = $(CSDIR)/launchpad
+CS_LAUNCHDIR        = $(CSDIR)/launchpad/$(OUTDIR)
+CS_COMMONDIR        = $(CSDIR)/common
+CS_TRACKERDIR       = $(CSDIR)/tracker
+CS_FULLDIR          = $(CSDIR)/coinsparkd_full
+CS_MAINDIR          = $(CSDIR)/coinsparkd
+
+CS_PROTOCOLDIR      = $(CSDIR)/../../protocol/coinspark/c
+CS_LOCALPROTOCOLDIR = $(CSDIR)/protocol
+
+ifneq ("$(wildcard $(CS_LOCALPROTOCOLDIR))","")
+    CS_PROTOCOLDIR      = $(CS_LOCALPROTOCOLDIR)
+endif
+
+CS_UNIXDIR	    = $(CSDIR)/linux
+CS_LEVELDBDIR	    = $(CSDIR)/leveldb
+CS_TARFILE          = $(CS_LAUNCH_ROOT)/$(CS_HOME_NAME)_$(PLATFORM)$(BUILD_BIT_PLAT)_$(PRODUCT_VERSION).tar
+TEMP_BLD_DIR        = $(CSDIR)/tmp
+
+#COMPONENTS_DIRS     = $(addprefix $(CSDIR)/,$(CS_COMPONENTS))   
+COMDEPS             = $(CS_COMMONDIR)/*.h
+OBJDIR_OBJS         = $(addprefix $(OUTDIR)/,$(OBJS))
+COMDIR              = $(CS_COMMONDIR)/$(OUTDIR)
+COMDIR_OBJS         = $(addprefix $(COMDIR)/,$(COMS))
+TRKDIR              = $(CS_TRACKERDIR)/$(OUTDIR)
+TRKDIR_OBJS         = $(addprefix $(TRKDIR)/,$(TRKS))
+PRTDIR              = $(CS_PROTOCOLDIR)/$(OUTDIR)
+PRTDIR_OBJS         = $(addprefix $(PRTDIR)/,$(PRTS))
+UNXDIR              = $(CS_UNIXDIR)/$(OUTDIR)
+UNXDIR_OBJS         = $(addprefix $(UNXDIR)/,$(UNXS))
+LAUNCHDIR_PRODS     = $(addprefix $(CS_LAUNCHDIR)/,$(CS_PRODUCTS))
+
+CS_PRODUCTS = coinsparkd 
+CS_FULL = coinsparkd_full
+ifneq ("$(wildcard $(CS_FULL))","")
+    CS_PRODUCTS += $(CS_FULL)
+endif
+COMPONENTS_DIRS = $(CS_PRODUCTS)
+
+
+ 
+
+EXTRA_LIBS          = $(CSDIR)/leveldb/libleveldb.a
+#EXTRA_LIBS          =
+
+#=============================================================================
+#  Define which compile and link applications we use
+#=============================================================================
+
+MAKE      = make
+CPP       = g++
+CC        = gcc
+LD        = gcc 
+CXX	  = gcc
+AR        = ar
+CP        = cp
+RM        = rm -f
+
+mkdir_p   = mkdir -p
+
+DEPEND_FLAGS 	= 
+ARFLAGS_PLAT      = cr
+PIC_PLAT          = -fPIC
+
+#===============================================================================
+#  Explanation of some CPP_DEFINES_PLAT flags:
+#  -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64   - These are needed in order 
+#  	to handle large files via the file control functions (open, read, etc.)
+#  -D__HP_NO_MATH_OVERLOADS - Needed to prevent aCC from giving errors on overloaded math
+#  	functions such as 'log(2.0)'
+#  -D_INCLUDE_LONGLONG - Necessary in order to use strtoll
+#===============================================================================
+
+
+ifeq ($(CSBLD),release64)
+    CPP_DEFINES_PLAT  = -DFC$(BUILD_BIT_PLAT) -D_UNIX -DCLLINUX -DCLUNIX -D_POSIX_SOURCE -D_REENTRANT -D_BSD_SOURCE -D_SVID_SOURCE -D_XOPEN_SOURCE=500 -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_INCLUDE_LONGLONG -D_LINUX
+endif
+
+#===============================================================================
+# Flags for producing shared libraries:
+# -Bprotected_def says that locally defined symbols are assigned the protected 
+# 	export class
+# -Wl,-Bsymbolic passes -Bsymbolic to the linker and causes all references in
+# 	the shared library to be resolved internally.
+#===============================================================================
+
+SHAREDFLAGS_PLAT  = -shared -Bprotected_def -Wl,-Bsymbolic -m$(BUILD_BIT_PLAT)
+THREAD_LIB        = -lpthread 
+CPPFLAGS_PLAT     = -m$(BUILD_BIT_PLAT)
+
+#===============================================================================
+# System libraries, and path to get at them.
+#===============================================================================
+# IMPORTANT!  on HP $(THREAD_LIB) must appear _before_ -lc, otherwise we get stubs
+# instead of the thread functions.
+#
+# rt is the realtime library, here for POSIX semaphore and shared memory functions
+#===============================================================================
+
+LIBS_PLAT 	  = -ldl -lrt $(THREAD_LIB) -lc  -lstdc++ #-lcrypto -lssl -lleveldb
+NETWORK_LIBS    =
+
+RELEASE_FLAGS_PLAT = -O
+
+DEBUG_CFLAGS        = -g -DDEBUG 
+RELEASE_CFLAGS	    = $(RELEASE_FLAGS_PLAT) -Wno-write-strings -Wall
+
+BUILD_CFLAGS	= $(RELEASE_CFLAGS)
+
+ifeq ($(CSBLD), debug32)
+    BUILD_CFLAGS    = $(DEBUG_CFLAGS)
+endif
+ifeq ($(CSBLD), debug64)
+    BUILD_CFLAGS    = $(DEBUG_CFLAGS)
+endif
+
+#===============================================================================
+# list of all common include directories
+#===============================================================================
+
+#INCDIRS+=-I. -I.. -I$(CS_COMMONDIR) -I$(CS_PROTOCOLDIR) -I$(CS_UNIXDIR) -I$(CSDIR)/leveldb/include -I/usr/include/openssl 
+INCDIRS+=-I. -I.. -I$(CS_COMMONDIR) -I$(CS_PROTOCOLDIR) -I$(CS_UNIXDIR) -I$(CS_LEVELDBDIR)/include #-I/usr/include/openssl 
+
+#===============================================================================
+# Compiler and Linker flag combine the platform specific definitions with
+# global definitions
+#===============================================================================
+
+CFLAGS		= $(CPPFLAGS_PLAT) $(CPP_DEFINES_PLAT) $(PIC_PLAT) $(BUILD_CFLAGS) $(EXTRA_CFLAGS) \
+		  $(INCDIRS) -D_$(BUILD_BIT_PLAT)BIT
+CPPFLAGS        = $(CPPFLAGS_PLAT) $(CPP_DEFINES_PLAT) $(PIC_PLAT) $(BUILD_CFLAGS) $(EXTRA_CFLAGS) \
+		  $(INCDIRS) -D_$(BUILD_BIT_PLAT)BIT
+LIBS            = $(LIBS_PLAT) $(EXTRA_LIBS)
+ARFLAGS         = $(ARFLAGS_PLAT)
+SHAREDFLAGS     = $(SHAREDFLAGS_PLAT)
+#-------------------------------------------------------------------------------
+
