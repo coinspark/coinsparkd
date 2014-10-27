@@ -948,7 +948,7 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
         for(output_id=0;output_id<g_State->m_TxOutputCount;output_id++)
         {
             cQty=*(CoinSparkAssetQty*)(g_State->m_TxAssetMatrix->GetRow(output_row+output_id));
-            if((cs_int32)cQty>0)
+            if((cs_int64)cQty>0)
             {
                 cs_PutNumberLittleEndian(CDBKey+CS_DCT_HASH_BYTES,&output_id,4,sizeof(j));
                 cs_PutNumberLittleEndian(CDBValue,&cQty,8,sizeof(CoinSparkAssetQty));        

@@ -117,7 +117,7 @@ cs_uint64 __stdcall cs_GetUInt64LittleEndian(void *src,cs_int32 size)
     shift=0;
     while(ptr<ptrEnd)
     {
-        result|=(*ptr)<<shift;
+        result|=((cs_int64)(*ptr))<<shift;
         shift+=8;
         ptr++;
     }
