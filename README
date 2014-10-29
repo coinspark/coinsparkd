@@ -126,7 +126,7 @@ Requirements for the asset server are as follows:
     su coinspark
 
     cd
-    wget http://download.coinspark.org/coinsparkd-1.0-beta.tar.gz
+    wget http://download.coinspark.org/coinsparkd-1.0.1-beta.tar.gz
     tar xzf coinsparkd-*.tar.gz
     cd ~coinspark/coinsparkd-*/coinsparkd
     make
