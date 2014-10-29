@@ -359,7 +359,7 @@ The subdirectory 'backup' of the coinsparkd data directory (default ~/.coinspark
 7. CHANGELOG
 =====================================================================
 
-v1.0.1 - 27 October 2014
+v1.0.1 - 29 October 2014
 * Fixed asset quantity overflow bug
 
 v1.0 - 29 September 2014
