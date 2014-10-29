@@ -1,5 +1,5 @@
 #
-# CoinSpark asset tracking server 1.0 beta
+# CoinSpark asset tracking server 1.0.1 beta
 # 
 # Copyright (c) 2014 Coin Sciences Ltd - coinspark.org
 # 
@@ -58,7 +58,7 @@ CONTENTS
 6. Configuring bitcoind and coinsparkd in startup script
     6.1 Ubuntu
     6.2 CentOS
-    
+7. Changelog    
 
 1. System requirements
 ==================================================
@@ -356,7 +356,14 @@ The subdirectory 'backup' of the coinsparkd data directory (default ~/.coinspark
 
 
 
+7. CHANGELOG
+=====================================================================
 
+v1.0.1 - 27 October 2014
+* Fixed asset quantity overflow bug
+
+v1.0 - 29 September 2014
+* First release
 
 
 
