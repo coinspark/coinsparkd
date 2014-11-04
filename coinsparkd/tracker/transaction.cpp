@@ -414,6 +414,7 @@ cs_int32 ParseBTCTransaction(cs_uchar *lpTx,cs_uchar *TxHash,cs_int32 block,cs_i
     }
         
     row=g_State->m_TxInputCount*g_State->m_TxAssetCount;
+    g_State->m_SkipMemPoolLogs=0;
     
     for(i=0;i<count;i++)                                                        // Outputs loop
     {
@@ -476,6 +477,7 @@ cs_int32 ParseBTCTransaction(cs_uchar *lpTx,cs_uchar *TxHash,cs_int32 block,cs_i
                         if(memcmp(TxHash,g_State->m_MemPoolOpReturns->GetRow(j),CS_DCT_HASH_BYTES) == 0)
                         {
                             found_in_mempool=1;
+                            g_State->m_SkipMemPoolLogs=1;
                         }                        
                     }
                     
@@ -556,13 +558,13 @@ cs_int32 ParseBTCTransaction(cs_uchar *lpTx,cs_uchar *TxHash,cs_int32 block,cs_i
                     if(op_return_pos+1+CS_DCT_ASSET_METADATA_SIZE<size)
                     {
                         sprintf(msg,"%d bytes",size-op_return_pos);
-                        cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0066","Transaction asset metadata is too long - ignored:",msg);                            
+                        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0066","Transaction asset metadata is too long - ignored:",msg);                            
                     }
                 }
                 else
                 {
                     sprintf(msg,"%d bytes, length byte: %d",size-op_return_pos-1,ptr[op_return_pos]);
-                    cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0067","Invalid OP_RETURN data - ignored:",msg);                                            
+                    cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0067","Invalid OP_RETURN data - ignored:",msg);                                            
                 }
             }
         }
@@ -664,7 +666,8 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
 //    if(CoCoDecodeGenesis((cs_char*)TxAssetMetaData,TxAssetMetaDataSize,&cGenesis))
     {
         bitcoin_hash_to_string(msg,TxHash);
-        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0068","Asset genesis in transaction",msg);                                            
+        if(g_State->m_SkipMemPoolLogs==0)
+            cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0068","Asset genesis in transaction",msg);                                            
 
         sprintf(msg,"%10d - %10d - ",block,offset);
         for(j=0;j<COINSPARK_ASSETREF_TXID_PREFIX_LEN;j++)
@@ -710,12 +713,14 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                     }                    
                     if(take_it == 0)
                     {
-                        cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0070","Wrong TxID prefix in genesis","");                                                                    
+                        if(g_State->m_SkipMemPoolLogs==0)
+                            cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0070","Wrong TxID prefix in genesis","");                                                                    
                     }
                 }
                 else
                 {
-                    cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0093","Asset should not be tracked","");  
+                    if(g_State->m_SkipMemPoolLogs==0)
+                        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0093","Asset should not be tracked","");  
                 }
             }
             
@@ -767,7 +772,8 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                                 prefix,
                                 (long int)cQty
                                 );
-                            cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0096","OUTPUT:",msg);            
+                            if(g_State->m_SkipMemPoolLogs==0)
+                                cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0096","OUTPUT:",msg);            
                         }
                         else
                         {    
@@ -777,7 +783,8 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                                 sprintf(msg+26+2*j,"%02x",TxHash[CS_DCT_HASH_BYTES-1-j]);
                             }
                             sprintf(msg+strlen(msg)," Output: %d, Value: %d",output_id,(cs_int32)cQty);
-                            cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0091","DB:",msg);                                            
+                            if(g_State->m_SkipMemPoolLogs==0)
+                                cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0091","DB:",msg);                                            
                         }
                     }
                 }
@@ -822,15 +829,18 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                 }
 
                 bitcoin_hash_to_string(msg,CDBKey);
-                cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0071","Asset genesis hash: ",msg);                                                        
+                if(g_State->m_SkipMemPoolLogs==0)
+                    cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0071","Asset genesis hash: ",msg);                                                        
             }
             
-            cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0072","Valid asset genesis","");                                            
+            if(g_State->m_SkipMemPoolLogs==0)
+                cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0072","Valid asset genesis","");                                            
         }        
         else
         {
             sprintf(msg,"Min fee: %d, fee in tx: %d",(cs_int32)min_fee,(cs_int32)(g_State->m_TxOutputCount));
-            cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0073","Invalid asset genesis",msg);                                                        
+            if(g_State->m_SkipMemPoolLogs==0)
+                cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0073","Invalid asset genesis",msg);                                                        
         }
     }
     else
@@ -860,19 +870,22 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                                                (bool*)(g_State->m_TxOutputRegulars->GetRow(0)));
                 if(min_fee<=g_State->m_TxSatoshiFee)
                 {
-                    cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0074","Valid asset transfers","");                                                                
+                    if(g_State->m_SkipMemPoolLogs==0)
+                        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0074","Valid asset transfers","");                                                                
                 }
                 else
                 {
                     sprintf(msg,"Min fee: %d, fee in tx: %d",(cs_int32)min_fee,(cs_int32)(g_State->m_TxOutputCount));
-                    cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0075","Invalid asset transfers",msg);                                                                                    
+                    if(g_State->m_SkipMemPoolLogs==0)
+                        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0075","Invalid asset transfers",msg);                                                                                    
                     g_State->m_TxAssetTransfers->Clear();
                 }
             }
             else
             {
                 g_State->m_TxAssetTransfers->Clear();    
-                cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0076","Cannot decode asset transfer","");                                                                        
+                if(g_State->m_SkipMemPoolLogs==0)
+                    cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0076","Cannot decode asset transfer","");                                                                        
             }
             
         }
@@ -901,7 +914,8 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
         if(err)
         {
             sprintf(msg,"Error: %08X, Asset Ref: %10d - %10d",err,(cs_int32)cAsset.blockNum,(cs_int32)cAsset.txOffset);
-            cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0077","Cannot read asset genesis",msg);                                            
+            if(g_State->m_SkipMemPoolLogs==0)
+                cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0077","Cannot read asset genesis",msg);                                            
             return err;            
         }
         else
@@ -911,7 +925,6 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
             {
                 sprintf(msg+26+2*j,"%02x",*((cs_uchar*)(cAsset.txIDPrefix)+j));
             }
-            cs_LogMessage(g_Log,CS_LOG_DEBUG,"","Asset genesis found: ",msg);                                                        
         }
                 
         if(transfer_count)
@@ -974,7 +987,8 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                         prefix,
                         (long int)cQty
                         );
-                    cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0097","OUTPUT:",msg);            
+                    if(g_State->m_SkipMemPoolLogs==0)
+                        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0097","OUTPUT:",msg);            
                 }
                 else
                 {    
@@ -985,7 +999,8 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                     }
                     sprintf(msg+strlen(msg)," Output: %d, Value: %d",output_id,(cs_int32)cQty);
                     
-                    cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0092","OUTPUT:",msg);                                    
+                    if(g_State->m_SkipMemPoolLogs==0)
+                        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0092","OUTPUT:",msg);                                    
                 }
             }
         }

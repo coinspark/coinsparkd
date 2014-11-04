@@ -51,6 +51,7 @@ typedef struct cs_State
     cs_Database     *m_AssetDB;
     
     cs_List         *m_MemoryPool;
+    cs_int32        m_SkipMemPoolLogs;
 
     cs_Buffer       *m_TxAssetMatrix;
     cs_Buffer       *m_TxAssetList;
@@ -84,6 +85,7 @@ typedef struct cs_State
         m_AssetDB=NULL;
         
         m_MemoryPool=NULL;
+        m_SkipMemPoolLogs=0;
         
         m_TxAssetMatrix=NULL;
         m_TxAssetList=NULL;
@@ -99,6 +101,8 @@ typedef struct cs_State
         m_BlockInsertCount=0;
         m_BlockUpdateCount=0;
         m_BlockDeleteCount=0;
+        
+        
     }
     
     void  Destroy()
