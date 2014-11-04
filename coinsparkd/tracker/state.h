@@ -49,6 +49,8 @@ typedef struct cs_State
     cs_Buffer       *m_MemPoolOpReturns;
     cs_Buffer       *m_MemPoolOpReturnsLast;
     cs_Database     *m_AssetDB;
+    
+    cs_List         *m_MemoryPool;
 
     cs_Buffer       *m_TxAssetMatrix;
     cs_Buffer       *m_TxAssetList;
@@ -80,6 +82,8 @@ typedef struct cs_State
         m_MemPoolOpReturns=NULL;        
         m_MemPoolOpReturnsLast=NULL;        
         m_AssetDB=NULL;
+        
+        m_MemoryPool=NULL;
         
         m_TxAssetMatrix=NULL;
         m_TxAssetList=NULL;
@@ -123,7 +127,12 @@ typedef struct cs_State
         {
             delete m_MemPoolOpReturnsLast;            
         }
-            
+
+        if(m_MemoryPool)
+        {
+            delete m_MemoryPool;
+        }
+        
         if(m_TxAssetMatrix)
         {
             delete m_TxAssetMatrix;

@@ -14,6 +14,8 @@
 #include "declare.h"
 
 #define CS_DCT_BUF_ALLOC_ITEMS          32768
+#define CS_DCT_LIST_ALLOC_MIN_SIZE      32768
+#define CS_DCT_LIST_ALLOC_MAX_SIZE      268435456
 
 #ifdef	__cplusplus
 extern "C" {
@@ -57,6 +59,33 @@ typedef struct cs_Buffer
 } cs_Buffer;
 
     
+typedef struct cs_List
+{
+    cs_List()
+    {
+         Zero();
+    }
+
+    ~cs_List()
+    {
+         Destroy();
+    }
+
+    cs_uchar           *m_lpData;   
+    cs_int32            m_AllocSize;
+    cs_int32            m_Size;
+    cs_int32            m_Pos;
+    cs_int32            m_ItemSize;
+    
+    void Zero();
+    cs_int32 Destroy();
+    
+    void Clear();
+    cs_int32 Put(cs_uchar *ptr, cs_int32 size);
+    cs_uchar *First();
+    cs_uchar *Next();
+    
+} cs_List;
 
 
 #ifdef	__cplusplus

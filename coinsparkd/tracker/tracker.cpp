@@ -768,6 +768,7 @@ cs_int32 cs_Tracker(void *ThreadData)
     g_State->m_MemPoolOpReturns->Initialize(CS_DCT_HASH_BYTES,CS_DCT_HASH_BYTES+sizeof(cs_uint32),0);
     g_State->m_MemPoolOpReturnsLast=new cs_Buffer;
     g_State->m_MemPoolOpReturnsLast->Initialize(CS_DCT_HASH_BYTES,CS_DCT_HASH_BYTES+sizeof(cs_uint32),0);
+    g_State->m_MemoryPool=new cs_List;
     
     g_State->m_TxAssetMatrix=new cs_Buffer;
     g_State->m_TxAssetMatrix->Initialize(0,sizeof(CoinSparkAssetQty),0);
@@ -937,7 +938,7 @@ cs_int32 cs_Tracker(void *ThreadData)
             }
             else
             {
-                __US_Sleep(15000);
+                __US_Sleep(5000);
             }
 
             if(g_State->m_AssetDB->m_lpHandlerShMem[CS_OFF_DB_SHMEM_HEAD_SIGNAL] == 0)
@@ -953,7 +954,7 @@ cs_int32 cs_Tracker(void *ThreadData)
                         cs_LogMessage(g_Log,CS_LOG_FATAL,"C-0018","Cannot clear memory pool",msg);                  
                         goto errorlbl;
                     }
-                    for(mempool_attempt=0;mempool_attempt<5;mempool_attempt++)
+                    for(mempool_attempt=0;mempool_attempt<1;mempool_attempt++)
                     {
                         err=ProcessMemPool(new_op_return_file);
                         new_op_return_file=0;
@@ -982,7 +983,12 @@ cs_int32 cs_Tracker(void *ThreadData)
         restore_block=-2;
         
 errorlbl:
-       
+
+        if(err == CS_ERR_TIMEOUT)
+        {
+            restore_block=-2;
+        }
+                
         if(restore_block>=0)
         {
             sprintf(msg,"%d",restore_block-1);

@@ -12,7 +12,7 @@
 
 void cs_Buffer::Zero()
 {
-	m_lpData=NULL;   
+    m_lpData=NULL;   
     m_AllocSize=0;
     m_Size=0;
     m_KeySize=0;
@@ -184,3 +184,120 @@ void cs_Buffer::CopyFrom(cs_Buffer *source)
     }
 }
 
+
+
+void cs_List::Zero()
+{
+    m_lpData=NULL;   
+    m_AllocSize=0;
+    m_Size=0;
+    m_Pos=0;    
+    m_ItemSize=0;
+}
+
+
+cs_int32 cs_List::Destroy()
+{
+    if(m_lpData)
+    {
+        cs_Delete(m_lpData,NULL,CS_ALT_DEFAULT);
+    }
+    
+    Zero();
+    
+    return CS_ERR_NOERROR;
+}
+
+void cs_List::Clear()
+{
+    m_Size=0;
+    m_Pos=0;
+    m_ItemSize=0;
+}
+
+cs_int32 cs_List::Put(cs_uchar *ptr, cs_int32 size)
+{
+    cs_uchar *NewBuffer;
+    cs_int32 NewSize;
+    cs_int32 true_size;
+    
+    true_size=size;
+    if(size<0)        
+    {
+        true_size=0;
+    }
+    if(ptr == NULL)
+    {
+        true_size=0;
+    }
+    
+    while(m_Size+true_size+(cs_int32)sizeof(cs_int32)>m_AllocSize)
+    {
+        if(m_AllocSize>0)
+        {
+            NewSize=m_AllocSize*2;    
+            if(NewSize> CS_DCT_LIST_ALLOC_MAX_SIZE)
+            {
+                return CS_ERR_ALLOCATION;
+            }
+        }
+        else
+        {
+            NewSize=CS_DCT_LIST_ALLOC_MIN_SIZE;
+        }
+                
+        NewBuffer=(cs_uchar*)cs_New(NewSize,NULL,CS_ALT_DEFAULT);
+        if(NewBuffer == NULL)
+        {
+            return CS_ERR_ALLOCATION;
+        }
+        else
+        {
+            if(m_lpData)
+            {
+                if(m_Size)
+                {
+                    memcpy(NewBuffer,m_lpData,m_Size);
+                }
+                cs_Delete(m_lpData,NULL,CS_ALT_DEFAULT);
+            }
+            m_lpData=NULL;                    
+        }
+        
+        m_AllocSize=NewSize;
+        m_lpData=NewBuffer;        
+    }
+
+    *(cs_int32 *)(m_lpData+m_Size)=true_size;
+    m_Size+=sizeof(cs_int32);
+    if(true_size)
+    {
+        memcpy(m_lpData+m_Size,ptr,true_size);
+    }
+    m_Size+=true_size;
+    
+    return CS_ERR_NOERROR;    
+}
+
+cs_uchar *cs_List::First()
+{
+    m_Pos=0;
+    return Next();
+}
+
+cs_uchar *cs_List::Next()
+{
+    cs_uchar *ptr;
+    if(m_Pos>=m_Size)
+    {
+        m_ItemSize=0;
+        return NULL;
+    }
+    
+    m_ItemSize=*(cs_int32 *)(m_lpData+m_Pos);
+    m_Pos+=sizeof(cs_int32);
+    ptr=m_lpData+m_Pos;
+    
+    m_Pos+=m_ItemSize;
+    return ptr;
+}

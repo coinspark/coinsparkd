@@ -21,7 +21,7 @@ extern cs_handle           g_Log;
 extern cs_Message          *g_Message;
 
 cs_int32 CalculateTxSize(cs_uchar *lpTx);
-cs_int32 ParseBTCTransaction(cs_uchar *lpTx,cs_uchar *TxHash,cs_int32 block,cs_uchar *TxAssetMetaData,cs_int32 *TxAssetMetaDataSize,cs_int32 remove_offset,cs_int32 add_offset,cs_uint32 block_ts);
+cs_int32 ParseBTCTransaction(cs_uchar *lpTx,cs_uchar *TxHash,cs_int32 block,cs_int32 offset,cs_uchar *TxAssetMetaData,cs_int32 *TxAssetMetaDataSize,cs_int32 remove_offset,cs_int32 add_offset,cs_uint32 block_ts);
 cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,cs_uchar *TxAssetMetaData,cs_int32 TxAssetMetaDataSize);
 cs_int32 TrackerProcessAsyncMessage(cs_int32 count);
 cs_int32 WriteBlockChain();
@@ -478,7 +478,6 @@ cs_int32 StoreTXsInDB(cs_int32 block,cs_int32 txcount,cs_int32 remove_offset,cs_
                 g_State->m_BlockInsertCount,g_State->m_BlockDeleteCount,g_State->m_BlockUpdateCount);        
         cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0098","Stored block",msg);          
     }
-    
     return err;
 }
 
@@ -655,7 +654,7 @@ cs_int32 ProcessBlock(cs_int32 block,cs_int32 block_count)
             bitcoin_hash_to_string(Out,TxHash);
             
             g_State->m_AssetDB->Lock(0);
-            err=ParseBTCTransaction(ptr,TxHash,block+i,TxAssetMetaData,&TxAssetMetaDataSize,0,0,block_ts);
+            err=ParseBTCTransaction(ptr,TxHash,block+i,ptr-block_start,TxAssetMetaData,&TxAssetMetaDataSize,0,0,block_ts);
             g_State->m_AssetDB->UnLock();
             if(err)
             {
@@ -708,13 +707,12 @@ cs_int32 ProcessBlock(cs_int32 block,cs_int32 block_count)
     return err;
 }
 
-/*
- * --- Processing mempool. Memory pool is considered is considered as separate block removed before processing any block (including mempool itself)
- */
 
 cs_int32 ProcessMemPool(cs_int32 new_op_return_file)
 {
     cs_int32 err,value,txcount,txsize,varint_size,count,block,dbvalue_len,i,remove_offset,add_offset,acc_count,total,TxAssetMetaDataSize,txfrom,txchunk,txpos,group;
+    cs_int32 this_acc_count,iterations;
+    cs_double start_time;
     cs_uint32 block_ts;
     cs_uchar buf[36];    
     cs_uchar *ptr;
@@ -732,8 +730,12 @@ cs_int32 ProcessMemPool(cs_int32 new_op_return_file)
     
     err=CS_ERR_NOERROR;
 
+    start_time=cs_TimeNow();
+    
     cs_LogShift(g_Log);
-
+    
+    g_State->m_MemoryPool->Clear();
+    
     g_Message->Clear();
         
     g_Message->Complete("mempool");
@@ -912,13 +914,43 @@ cs_int32 ProcessMemPool(cs_int32 new_op_return_file)
 
                 cs_LogShift(g_Log);
                 txsize=CalculateTxSize(ptr);
+                g_State->m_MemoryPool->Put(ptr,txsize);
+                ptr+=txsize;
+                txpos++;        
+                acc_count++;
+            }
+        }
+    }
+    
+    for(i=0;i<txcount;i++)
+    {
+        lpRequiredTxs[i]=1;
+    }
+    
+    iterations=0;
+    acc_count=0;
+    this_acc_count=1;    
+    while(this_acc_count>0)
+    {
+        iterations++;
+        remove_offset=g_State->m_TxOutRemove->GetCount();
+        add_offset=g_State->m_TxOutAdd->GetCount();
+        i=0;
+        this_acc_count=0;
+        ptr=g_State->m_MemoryPool->First();
+        while(ptr)
+        {
+            if(lpRequiredTxs[i])
+            {
+                cs_LogShift(g_Log);
+                txsize=CalculateTxSize(ptr);
 
                 bitcoin_tx_hash(TxHash,ptr,txsize);
 
                 bitcoin_hash_to_string(Out,TxHash);
 
                 g_State->m_AssetDB->Lock(0);
-                err=ParseBTCTransaction(ptr,TxHash,block,TxAssetMetaData,&TxAssetMetaDataSize,remove_offset,add_offset,block_ts);
+                err=ParseBTCTransaction(ptr,TxHash,block,0,TxAssetMetaData,&TxAssetMetaDataSize,remove_offset,add_offset,block_ts);
                 g_State->m_AssetDB->UnLock();
                 if(err)
                 {
@@ -928,34 +960,36 @@ cs_int32 ProcessMemPool(cs_int32 new_op_return_file)
                 else
                 {
                     acc_count++;
+                    this_acc_count++;
                     cs_LogMessage(g_Log,CS_LOG_MINOR,"C-0060","Accepted transaction",Out);            
                     g_State->m_AssetDB->Lock(0);
-//                    err=ParseAssetTransaction(TxHash,block,0,TxAssetMetaData,TxAssetMetaDataSize);
                     ParseAssetTransaction(TxHash,block,0,TxAssetMetaData,TxAssetMetaDataSize);
                     g_State->m_AssetDB->UnLock();
+                    lpRequiredTxs[i]=0;
                 }
-                ptr+=txsize;
-                txpos++;        
+            }
+            ptr=g_State->m_MemoryPool->Next();
+            i++;
+        }
+        
+        if(this_acc_count)
+        {
+            g_State->m_AssetDB->Lock(1);
+            err=StoreTXsInDB(block,acc_count,remove_offset,add_offset);             // Storing memory pool block in database
+            g_State->m_AssetDB->UnLock();
+            if(err)
+            {
+                return err;
             }
         }
+        
+        g_State->m_TxOutRemove->Clear();
+        g_State->m_TxOutAdd->Clear();
+
     }
     
-    if(acc_count)
-    {
-        g_State->m_AssetDB->Lock(1);
-        err=StoreTXsInDB(block,acc_count,remove_offset,add_offset);             // Storing memory pool block in database
-        g_State->m_AssetDB->UnLock();
-        if(err)
-        {
-            return err;
-        }
-        sprintf((cs_char*)msg,"Accepted: %d txs, Required: %d txs, Total: %d txs",acc_count,txcount,total);
-        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0061","Mempool update successful",(cs_char*)msg);      
-    }
-    
-    
-    g_State->m_TxOutRemove->Clear();
-    g_State->m_TxOutAdd->Clear();
+    sprintf((cs_char*)msg,"Time %6.3fs, Iterations: %d, Accepted: %d txs, Remaining: %d txs, Total: %d txs",cs_TimeNow()-start_time,iterations,acc_count,txcount-acc_count,total);
+    cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0061","Mempool update successful",(cs_char*)msg);      
     
 exitlbl:
 
@@ -964,6 +998,4 @@ exitlbl:
     
     return err;
 }
-
-
 

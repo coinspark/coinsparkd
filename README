@@ -126,7 +126,7 @@ Requirements for the asset server are as follows:
     su coinspark
 
     cd
-    wget http://download.coinspark.org/coinsparkd-1.0.1-beta.tar.gz
+    wget http://download.coinspark.org/coinsparkd-1.0.2-beta.tar.gz
     tar xzf coinsparkd-*.tar.gz
     cd ~coinspark/coinsparkd-*/coinsparkd
     make
@@ -358,6 +358,10 @@ The subdirectory 'backup' of the coinsparkd data directory (default ~/.coinspark
 
 7. CHANGELOG
 =====================================================================
+
+v1.0.2 -  4 November 2014
+* Improved memory pool processing
+* Bug fixed: Timeout error is ignored when deciding whether to start from checkpoint
 
 v1.0.1 - 29 October 2014
 * Fixed asset quantity overflow bug

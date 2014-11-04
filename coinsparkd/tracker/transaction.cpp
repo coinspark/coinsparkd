@@ -87,7 +87,7 @@ cs_int32 CalculateTxSize(cs_uchar *lpTx)
  * --- Processing BTC asset, preparing asset list, extracting metadata
  */
 
-cs_int32 ParseBTCTransaction(cs_uchar *lpTx,cs_uchar *TxHash,cs_int32 block,cs_uchar *TxAssetMetaData,cs_int32 *TxAssetMetaDataSize,cs_int32 remove_offset,cs_int32 add_offset,cs_uint32 block_ts)
+cs_int32 ParseBTCTransaction(cs_uchar *lpTx,cs_uchar *TxHash,cs_int32 block,cs_int32 offset,cs_uchar *TxAssetMetaData,cs_int32 *TxAssetMetaDataSize,cs_int32 remove_offset,cs_int32 add_offset,cs_uint32 block_ts)
 {
     cs_int32 err,varint_size,count,i,size,sum,j,dbvalue_len,spent,remove_count,row,group,msize,asset_count,read_mode,same_block,off,found_in_mempool;
     cs_uint32 ts;
@@ -522,7 +522,7 @@ cs_int32 ParseBTCTransaction(cs_uchar *lpTx,cs_uchar *TxHash,cs_int32 block,cs_u
                             off+=2;
                         }
                     }
-                    sprintf(op_return_msg+off,"\t%d\n",ts);
+                    sprintf(op_return_msg+off,"\t%d\t%d\n",ts,offset);
                     op_return_file=open(filename,O_RDWR | O_CREAT,S_IRUSR | S_IWUSR);
                     if(op_return_file)
                     {

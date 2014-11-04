@@ -48,7 +48,7 @@
 #define CS_DCT_BLOCK_PER_FOLDER                1000
 #define CS_DCT_BLOCK_PURGE_DELAY               1008
 #define CS_DCT_BLOCKS_CHUNK                      20
-#define CS_DCT_TXS_CHUNK                        200
+#define CS_DCT_TXS_CHUNK                        500
 
 /* DB special record codes */
 
