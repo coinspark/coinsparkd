@@ -101,7 +101,7 @@ cs_int32 cs_Database::BatchRead(cs_char *Data,cs_int32 *results,cs_int32 count,c
 
 cs_int32 DBShMemReadServerLoop(void *ThreadData)
 {
-    cs_int32 err,shmem_size,row_size,slot_size,slot,last_slot,work,count,row,rerr,vlen;   
+    cs_int32 err,shmem_size,row_size,slot_size,slot,last_slot,work,count,row,rerr,vlen,nncount;   
     cs_double start_time,this_time;
     cs_handle shmem;
     cs_uint64 *lpShMem;
@@ -265,10 +265,67 @@ cs_int32 DBShMemReadServerLoop(void *ThreadData)
                 {
                     rptr=uiptr+CS_OFF_DB_SHMEM_SLOT_DATA;
                     db->Lock(0);
+                    nncount=0;
+                    lpRead=NULL;
                     for(row=0;row<(cs_int32)(uiptr[CS_OFF_DB_SHMEM_SLOT_ROW_COUNT]);row++)
                     {
                         switch(rptr[CS_OFF_DB_SHMEM_ROW_REQUEST])
                         {
+                            case CS_PRT_DB_SHMEM_ROW_REQUEST_READALL:
+                                lpKey=(cs_char*)(rptr+CS_OFF_DB_SHMEM_ROW_DATA);
+                                if(row==0)
+                                {                                    
+                                    nncount=0;
+                                    lpRead=db->Read(lpKey,rptr[CS_OFF_DB_SHMEM_ROW_KEY_SIZE],&vlen,CS_OPT_DB_DATABASE_SEEK_ON_READ,&rerr);
+                                }
+                                else
+                                {
+                                    if(lpRead)
+                                    {
+                                        lpRead=db->MoveNext(&rerr);
+                                    }
+                                    if(lpRead)
+                                    {
+                                        memcpy(lpKey,lpRead,db->m_KeySize);
+                                        if(memcmp(lpKey-row_size,lpRead,uiptr[CS_OFF_DB_SHMEM_SLOT_FIXEDKEYSIZE]))
+                                        {
+                                            lpRead=NULL;
+                                        }
+                                        else
+                                        {
+                                            lpRead+=db->m_KeySize;
+                                        }
+                                    }          
+                                    else
+                                    {
+                                        memset(lpKey,0x7f,db->m_KeySize);
+                                    }
+                                }
+                                rptr[CS_OFF_DB_SHMEM_ROW_VALUE_SIZE]=vlen;
+                                if(rerr)
+                                {
+                                    rptr[CS_OFF_DB_SHMEM_ROW_RESPONSE]=CS_PRT_DB_SHMEM_ROW_RESPONSE_ERROR;
+                                }
+                                else
+                                {
+                                    
+                                    if(lpRead)
+                                    {
+                                        nncount++;
+                                        rptr[CS_OFF_DB_SHMEM_ROW_RESPONSE]=CS_PRT_DB_SHMEM_ROW_RESPONSE_NOT_NULL;
+                                        memcpy(lpKey+db->m_KeySize,lpRead,vlen);
+                                    }
+                                    else
+                                    {
+                                        rptr[CS_OFF_DB_SHMEM_ROW_RESPONSE]=CS_PRT_DB_SHMEM_ROW_RESPONSE_NULL;                                        
+                                    }
+                                }
+                                if(row == ((cs_int32)(uiptr[CS_OFF_DB_SHMEM_SLOT_ROW_COUNT])-1))
+                                {
+                                    sprintf(msg,"Slot: %3d; PID: %6d; Rows: %3d;",slot,(cs_int32)(uiptr[CS_OFF_DB_SHMEM_SLOT_PROCESS_ID]),nncount);
+                                    cs_LogMessage(db->m_Log,CS_LOG_REPORT,"C-0108","Read all request",msg);        // LASTLOG                               
+                                }
+                                break;
                             case CS_PRT_DB_SHMEM_ROW_REQUEST_READ:
                                 lpKey=(cs_char*)(rptr+CS_OFF_DB_SHMEM_ROW_DATA);
                                 lpRead=db->Read(lpKey,rptr[CS_OFF_DB_SHMEM_ROW_KEY_SIZE],&vlen,0,&rerr);

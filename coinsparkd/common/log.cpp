@@ -34,7 +34,7 @@ cs_handle cs_LogInitialize(cs_char *FileName,cs_int32 Size,cs_uint32 Filter,cs_u
 
     if(log)
     {
-        log->m_RecID=(((cs_uint32)cs_TimeNow())&0x7FFFFFFF)*16;
+        log->m_RecID=(((cs_uint32)cs_TimeNow())&0x00FFFFFF)*256;
         log->m_BufPos=0;
         log->m_BufSize=0;
         log->m_FileName[0]=0;

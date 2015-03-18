@@ -1003,7 +1003,7 @@ errorlbl:
             else
             {
                 sprintf(msg,"%d",restore_block);
-                cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0107","Restoring from height",msg);  // LASTLOG              
+                cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0107","Restoring from height",msg);            
             }
         }
         else

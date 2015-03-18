@@ -59,6 +59,7 @@
 #define CS_OFF_DB_SHMEM_SLOT_ROW_COUNT                           1
 #define CS_OFF_DB_SHMEM_SLOT_RESULT                              2
 #define CS_OFF_DB_SHMEM_SLOT_TIMESTAMP                           3
+#define CS_OFF_DB_SHMEM_SLOT_FIXEDKEYSIZE                        4
 #define CS_OFF_DB_SHMEM_SLOT_DATA                                8
 
 #define CS_OFF_DB_SHMEM_ROW_REQUEST                              0
@@ -75,6 +76,7 @@
 #define CS_PRT_DB_SHMEM_ROW_REQUEST_WRITE                           2
 #define CS_PRT_DB_SHMEM_ROW_REQUEST_DELETE                          3
 #define CS_PRT_DB_SHMEM_ROW_REQUEST_COMMIT                          4
+#define CS_PRT_DB_SHMEM_ROW_REQUEST_READALL                         5
 #define CS_PRT_DB_SHMEM_ROW_REQUEST_CLOSE                          16
 
 #define CS_PRT_DB_SHMEM_ROW_RESPONSE_UNDEFINED                      0

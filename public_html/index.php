@@ -33,6 +33,7 @@
     define("CS_OFF_DB_SHMEM_SLOT_ROW_COUNT",                           1);
     define("CS_OFF_DB_SHMEM_SLOT_RESULT",                              2);
     define("CS_OFF_DB_SHMEM_SLOT_TIMESTAMP",                           3);
+    define("CS_OFF_DB_SHMEM_SLOT_FIXEDKEYSIZE",                        4);
     define("CS_OFF_DB_SHMEM_SLOT_DATA",                                8);
 
     define("CS_OFF_DB_SHMEM_ROW_REQUEST",                              0);
@@ -49,6 +50,7 @@
     define("CS_PRT_DB_SHMEM_ROW_REQUEST_WRITE",                           2);
     define("CS_PRT_DB_SHMEM_ROW_REQUEST_DELETE",                          3);
     define("CS_PRT_DB_SHMEM_ROW_REQUEST_COMMIT",                          4);
+    define("CS_PRT_DB_SHMEM_ROW_REQUEST_READALL",                         5);
     define("CS_PRT_DB_SHMEM_ROW_REQUEST_CLOSE",                          16);
 
     define("CS_PRT_DB_SHMEM_ROW_RESPONSE_UNDEFINED",                      0);
@@ -180,6 +182,67 @@
         {
             shmop_close($shmem_segment);
         }        
+    }
+    
+    function db_readall_request($slot_offset,$firstkey)
+    {
+        global $shmem_segment;
+        
+        $row_size=shmem_get_number(CS_OFF_DB_SHMEM_HEAD_ROW_SIZE)/8;
+        $key_size=shmem_get_number(CS_OFF_DB_SHMEM_HEAD_KEY_SIZE);
+        $value_size=shmem_get_number(CS_OFF_DB_SHMEM_HEAD_VALUE_SIZE);
+        $max_rows=16;//shmem_get_number(CS_OFF_DB_SHMEM_HEAD_MAX_ROWS);
+        $row=0;
+        $count=0;
+        
+        shmem_set_number($slot_offset+CS_OFF_DB_SHMEM_SLOT_ROW_COUNT,0);
+        shmem_set_number($slot_offset+CS_OFF_DB_SHMEM_SLOT_RESULT,CS_PRT_DB_SHMEM_SLOT_RESULT_UNDEFINED);            
+        shmem_set_number($slot_offset+CS_OFF_DB_SHMEM_SLOT_FIXEDKEYSIZE,36);
+
+        $read_results=array();
+        
+        while(!is_null($firstkey))
+        {
+            $row_offset=$slot_offset+shmem_get_number(CS_OFF_DB_SHMEM_HEAD_SLOT_DATA_OFFSET)/8;
+            
+            for($row=0;$row<$max_rows;$row++)
+            {
+                shmem_set_number($row_offset+$row*$row_size+CS_OFF_DB_SHMEM_ROW_RESPONSE,CS_PRT_DB_SHMEM_ROW_RESPONSE_UNDEFINED);
+                shmem_set_number($row_offset+$row*$row_size+CS_OFF_DB_SHMEM_ROW_REQUEST,CS_PRT_DB_SHMEM_ROW_REQUEST_READALL);
+                shmem_set_number($row_offset+$row*$row_size+CS_OFF_DB_SHMEM_ROW_KEY_SIZE,$key_size);
+            }
+            shmop_write($shmem_segment, $firstkey, ($row_offset+CS_OFF_DB_SHMEM_ROW_DATA)*8);
+            
+            shmem_set_number($slot_offset+CS_OFF_DB_SHMEM_SLOT_ROW_COUNT,0);
+            shmem_set_number($slot_offset+CS_OFF_DB_SHMEM_SLOT_RESULT,CS_PRT_DB_SHMEM_SLOT_RESULT_UNDEFINED);            
+            shmem_set_number($slot_offset+CS_OFF_DB_SHMEM_SLOT_ROW_COUNT,$max_rows);
+            $start_time=time();
+            while((shmem_get_number($slot_offset+CS_OFF_DB_SHMEM_SLOT_RESULT) == CS_PRT_DB_SHMEM_SLOT_RESULT_UNDEFINED) && (time()-$start_time<CS_DCT_DB_DEFAULT_MAX_SHMEM_TIMEOUT))
+            {
+                usleep(1000);                
+            }
+            
+            $key=$firstkey;
+            for($row=0;$row<$max_rows;$row++)
+            {
+                if((strlen($key)))
+                {
+                    if(shmem_get_number($row_offset+CS_OFF_DB_SHMEM_ROW_RESPONSE)==CS_PRT_DB_SHMEM_ROW_RESPONSE_NOT_NULL)
+                    {
+                        $key=shmop_read($shmem_segment, ($row_offset+CS_OFF_DB_SHMEM_ROW_DATA)*8,$key_size);
+                        $read_results[$key]=shmop_read($shmem_segment, ($row_offset+CS_OFF_DB_SHMEM_ROW_DATA)*8+$key_size, $value_size);
+                    }
+                    else
+                    {
+                        $key=null;
+                    }
+                }                
+                $row_offset+=$row_size;                                
+            }
+            $firstkey=$key;
+        }
+        
+        return $read_results;
     }
     
     function db_request($slot_offset,$read_results)
@@ -329,7 +392,7 @@
                 $response['error']->code=CS_ERR_INVALID_REQUEST;
                 $response['error']->message="The JSON received doesn't have method field";                          
             }            
-            if($decoded->method == 'coinspark_assets_get_qty')
+            if(($decoded->method == 'coinspark_assets_get_qty') || ($decoded->method == 'coinspark_all_assets_get_qty'))
             {
                 if(property_exists($decoded, "id"))
                 {
@@ -343,20 +406,23 @@
                 }
                 if(property_exists($decoded, "params"))
                 {
-                    if(property_exists($decoded->params, "assets"))
+                    if($decoded->method == 'coinspark_assets_get_qty')
                     {
-                        if(!is_array($decoded->params->assets))
+                        if(property_exists($decoded->params, "assets"))
+                        {
+                            if(!is_array($decoded->params->assets))
+                            {
+                                $response['error']=new stdClass();
+                                $response['error']->code=CS_ERR_INVALID_PARAMS;
+                                $response['error']->message="The assets parameters should be array";                                              
+                            }
+                        }  
+                        else
                         {
                             $response['error']=new stdClass();
                             $response['error']->code=CS_ERR_INVALID_PARAMS;
-                            $response['error']->message="The assets parameters should be array";                                              
+                            $response['error']->message="The parameters in JSON received doesn't have assets field";                                              
                         }
-                    }  
-                    else
-                    {
-                        $response['error']=new stdClass();
-                        $response['error']->code=CS_ERR_INVALID_PARAMS;
-                        $response['error']->message="The parameters in JSON received doesn't have assets field";                                              
                     }
                     if(property_exists($decoded->params, "txouts"))
                     {
@@ -395,6 +461,7 @@
         switch($decoded->method)
         {
             case 'coinspark_assets_get_qty':
+            case 'coinspark_all_assets_get_qty':
                 break;
             case 'info':
 		break;
@@ -435,6 +502,140 @@
         
         switch($decoded->method)
         {
+            case 'coinspark_all_assets_get_qty':
+                $btc_asset=new stdClass();
+                $btc_asset->txid='BTC';
+                $btc_asset->block=0;
+                $btc_asset->offset=81;
+                $btc_asset->genhash="00000000";
+
+                $txouts=$decoded->params->txouts;
+                
+                $btckey=pack("V",$btc_asset->block).pack("V",$btc_asset->offset).hex_to_bin($btc_asset->genhash);
+                
+                
+                $response['result']=array();
+                $assets=array();
+                
+                foreach($txouts as $txkey=>$txout)
+                {
+                    if(is_object($txout))
+                    {
+                        if(property_exists($txout, "txid") && property_exists($txout, "vout"))
+                        {
+                            
+                            $result=array();
+                            
+                            $firstkey=swap_bytes(hex_to_bin($txout->txid)).pack("V",$txout->vout).$btckey;
+                            $read_results=db_readall_request($slot_offset, $firstkey);
+                            
+                            if(count($read_results) == 0)
+                            {
+                                $asset_error=new stdClass();
+                                $asset_error->code=CS_ERR_TXOUT_NOT_FOUND;
+                                $asset_error->message="The transaction output specified could not be found";
+                                $result=array(
+                                    'txid' => $txout->txid,
+                                    'vout' => $txout->vout,
+                                    'error'     => $asset_error,
+                                );
+                            }
+                            else
+                            {
+                                foreach($read_results as $key=>$value)
+                                {                                                                    
+                                    $arr=unpack('V', $value);
+                                    $units=intval($arr[1]);
+                                    $arr=unpack('V', substr($value,4,4));
+                                    $units+=0x100000000*intval($arr[1]);
+                                    if(count($result)==0)
+                                    {
+                                        $arr=unpack('V', substr($value,8,4));
+                                        $block=intval($arr[1]);
+                                        $arr=unpack('V', substr($value,12,4));
+                                        $spent=intval($arr[1]);                                        
+                                        $result=array(
+                                            'txid' => $txout->txid,
+                                            'vout' => $txout->vout,
+                                            'block'=> $block,
+                                            'spent'=> $spent,
+                                            'assets'=> array(),
+                                        );
+                                    }
+                                    
+                                    $asset_id=substr($key,36,12);
+                                    $arr=unpack('V', $asset_id);		
+                                    $assetref=intval($arr[1]);
+                                    $arr=unpack('V',substr($asset_id,4,4));
+                                    $assetref.="-".intval($arr[1]);
+                                    $arr=unpack('V',substr($asset_id,8,2));
+                                    $assetref.="-".intval($arr[1]);
+                                    $result['assets'][$assetref]=$units;
+                                    $assets[$assetref]=$assetref;
+                                }
+                            }
+                            
+                            $response['result'][]=array_to_object($result);                            
+                        }
+                    }
+                }
+                      
+                
+                $asset_read_results=array();
+                foreach(array_keys($assets) as $assetref)
+                {
+                    $arr=explode("-",$assetref);
+                    $assetid=pack("V",$arr[0]).pack("V",$arr[1]).hex_to_bin("00000000");
+                    $hash=hash('sha256',$assetid,1);
+                    $hash=hash('sha256',$hash,1);
+                    $hash=swap_bytes($hash);
+                    
+                    for($chunk=0;$chunk<5;$chunk++)
+                    {
+                        $asset_read_results[$assetref.'-'.$chunk]=array(
+                            'key'       => swap_bytes($hash).pack("V",0).pack("V",0).pack("V",0).pack("V",$chunk),
+                            'value'     => null,                        
+                        );
+                    }
+                    
+                }
+                
+                $asset_read_results=db_request($slot_offset,$asset_read_results);
+                foreach(array_keys($assets) as $assetref)
+                {
+                    $asset_def='';
+                    for($chunk=0;$chunk<5;$chunk++)
+                    {
+                        if(!is_null($asset_read_results[$assetref.'-'.$chunk]['value']))
+                        {
+                            $asset_def.=$asset_read_results[$assetref.'-'.$chunk]['value'];
+                        }
+                    }                    
+                    if(strlen($asset_def)>=8)
+                    {
+                        $arr=unpack('V',substr($asset_def,4,4));
+                        $metasize=intval($arr[1]);
+                        $txid=swap_bytes(substr($asset_def,8+$metasize,32));
+                        $full_assetref=substr($assetref,0,  strrpos($assetref, "-")+1);
+                        $full_assetref.=ord(substr($txid,1))*256+ord(substr($txid,0));
+                        $assets[$assetref]=$full_assetref;
+                    }
+                }            
+              
+                foreach($response['result'] as $key=>$result)
+                {
+                    foreach(array_keys($result->assets) as $assetref)
+                    {
+                        if($assets[$assetref]!=$assetref)
+                        {
+                            $response['result'][$key]->assets[$assets[$assetref]]=$result->assets[$assetref];
+                            unset($response['result'][$key]->assets[$assetref]);
+                        }
+                    }
+                }
+                
+                
+                break;
             case 'coinspark_assets_get_qty':
                 $btc_asset=new stdClass();
                 $btc_asset->txid='BTC';

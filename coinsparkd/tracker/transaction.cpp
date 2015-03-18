@@ -970,7 +970,8 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                 {
                     return err;
                 }        
-                if(block != CS_DCT_MEMPOOL_BLOCK)
+                
+                if(g_State->m_SkipMemPoolLogs==0)
                 {
                     prefix=0;
                     for(j=0;j<COINSPARK_ASSETREF_TXID_PREFIX_LEN;j++)
@@ -979,17 +980,31 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                         prefix+=*((cs_uchar*)(cAsset.txIDPrefix)+j);
                     }
                     bitcoin_hash_to_string(msg,TxHash);
-                    sprintf(msg+64,"-%d-%d %d-%d-%d %ld",
-                        output_id,
-                        block,
-                        (cs_int32)cAsset.blockNum,
-                        (cs_int32)cAsset.txOffset,
-                        prefix,
-                        (long int)cQty
-                        );
-                    if(g_State->m_SkipMemPoolLogs==0)
+                    if(block != CS_DCT_MEMPOOL_BLOCK)
+                    {
+                        sprintf(msg+64,"-%d-%d %d-%d-%d %ld",
+                            output_id,
+                            block,
+                            (cs_int32)cAsset.blockNum,
+                            (cs_int32)cAsset.txOffset,
+                            prefix,
+                            (long int)cQty
+                            );
                         cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0097","OUTPUT:",msg);            
+                    }
+                    else
+                    {
+                        sprintf(msg+64,"-%d-mp %d-%d-%d %ld",
+                            output_id,
+                            (cs_int32)cAsset.blockNum,
+                            (cs_int32)cAsset.txOffset,
+                            prefix,
+                            (long int)cQty
+                            );
+                        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0092","OUTPUT:",msg);                                    
+                    }
                 }
+/*                    
                 else
                 {    
                     sprintf(msg,"%10d - %10d - ",(cs_int32)cAsset.blockNum,(cs_int32)cAsset.txOffset);
@@ -1002,6 +1017,7 @@ cs_int32 ParseAssetTransaction(cs_uchar *TxHash,cs_int32 block,cs_int32 offset,c
                     if(g_State->m_SkipMemPoolLogs==0)
                         cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0092","OUTPUT:",msg);                                    
                 }
+ */ 
             }
         }
         
