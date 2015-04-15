@@ -1,4 +1,4 @@
-m/*
+/*
  * CoinSpark asset tracking server 1.0 beta
  * 
  * Copyright (c) 2014 Coin Sciences Ltd - coinspark.org
