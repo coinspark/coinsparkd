@@ -216,6 +216,36 @@ cs_int32 RemoveBlock(cs_int32 mempool)
     return err;
 }
 
+cs_int32 IsPureBTC(cs_char *CDBRow)
+{
+    cs_int32 err,pure_btc,dbvalue_len;
+    void *dbvalue;
+
+    if(memcmp(CDBRow+CS_DCT_HASH_BYTES+4,g_State->m_AssetState+CS_OFF_ASSET_STATE_ID,CS_DCT_ASSET_ID_SIZE))
+    {
+        return 0;
+    }
+    
+    
+    dbvalue=g_State->m_AssetDB->Read((cs_char*)CDBRow,CS_DCT_CDB_KEY_SIZE,&dbvalue_len,CS_OPT_DB_DATABASE_SEEK_ON_READ,&err);
+                    
+    pure_btc=1;
+    if(dbvalue)
+    {
+        dbvalue=g_State->m_AssetDB->MoveNext(&err);
+        if((err==CS_ERR_NOERROR) && (dbvalue != NULL))
+        {
+            if(memcmp(dbvalue,CDBRow,CS_DCT_HASH_BYTES+4) == 0)        // Checking UTXOC belongs to the same txout
+            {
+                pure_btc=0;
+            }
+        }
+        err=CS_ERR_NOERROR;
+    }
+
+    return pure_btc;
+}
+
 /*
  * --- Purging old block. All txouts spent by this block are deleted. Cached block files are removed.
  */
@@ -229,6 +259,7 @@ cs_int32 PurgeBlock(cs_int32 block)
     cs_int32 group;
     cs_int32 fHan;
     cs_char msg[100];
+//    cs_Buffer *txoutBuffer;
     
     g_State->m_BlockInsertCount=0;
     g_State->m_BlockUpdateCount=0;
@@ -244,6 +275,7 @@ cs_int32 PurgeBlock(cs_int32 block)
         sprintf(filename,"%s%s%c%06d",g_Args->m_DataDir,CS_DCT_FOLDER_SPENT_TXOUTS,CS_DCT_FOLDERSEPARATOR,group);
         sprintf(filename,"%s%cspent_%d.dat",filename,CS_DCT_FOLDERSEPARATOR,block);
 
+
         fHan=open(filename,_O_BINARY | O_RDONLY);
 
         size=CS_DCT_CDB_KEY_SIZE+CS_DCT_CDB_VALUE_SIZE;
@@ -252,6 +284,106 @@ cs_int32 PurgeBlock(cs_int32 block)
         {
             g_State->m_AssetDB->Lock(1);
             bytes_read=size;
+            
+            
+/*            
+            asset_found=0;
+            txoutBuffer=new cs_Buffer;
+            txoutBuffer->Initialize(CS_DCT_CDB_KEY_SIZE,CS_DCT_CDB_KEY_SIZE+CS_DCT_CDB_VALUE_SIZE,0);
+            txoutBuffer->Clear();
+            
+            while(bytes_read==size)                                                 // Deleting spent txouts
+            {
+                purge=0;
+                bytes_read=read(fHan,CDBRow,size);        
+                if(bytes_read==size)
+                {
+                    if(asset_found == 0)
+                    {
+                        if(memcmp(CDBRow+CS_DCT_HASH_BYTES+4,g_State->m_AssetState+CS_OFF_ASSET_STATE_ID,CS_DCT_ASSET_ID_SIZE))
+                        {
+                            bitcoin_hash_to_string(msg,CDBRow);
+                            sprintf(msg+64,"-%08X-%08X-%08X-%08X",
+                                    (cs_int32)cs_GetUInt64LittleEndian(CDBRow+CS_DCT_HASH_BYTES+0,4),
+                                    (cs_int32)cs_GetUInt64LittleEndian(CDBRow+CS_DCT_HASH_BYTES+4,4),
+                                    (cs_int32)cs_GetUInt64LittleEndian(CDBRow+CS_DCT_HASH_BYTES+8,4),
+                                    (cs_int32)cs_GetUInt64LittleEndian(CDBRow+CS_DCT_HASH_BYTES+12,4)
+                                    );
+                            cs_LogMessage(g_Log,CS_LOG_WARNING,"C-0109","Transaction is not deleted, asset transfer found",msg);            
+                            asset_found=1;
+                        }
+                    }
+                    if(txoutBuffer->GetCount())
+                    {
+                        if(memcmp(txoutBuffer->GetRow(0),CDBRow,CS_DCT_HASH_BYTES))
+                        {
+                            purge=1;
+                        }
+                    }
+                    if(purge == 0)
+                    {
+                        txoutBuffer->Add(CDBRow,CDBRow+CS_DCT_CDB_KEY_SIZE);
+                    }
+                }
+                else
+                {
+                    purge=1;
+                }
+                if(purge)
+                {
+                    if(asset_found==0)
+                    {
+                        for(i=0;i<txoutBuffer->GetCount();i++)
+                        {
+                            g_State->m_BlockDeleteCount+=1;
+                            err=g_State->m_AssetDB->Delete((cs_char*)(txoutBuffer->GetRow(i)),CS_DCT_CDB_KEY_SIZE,0);
+                            if(err)
+                            {
+                                g_State->m_AssetDB->UnLock();
+                                return err;
+                            }                            
+                        }
+                    }
+                    txoutBuffer->Clear();
+                    if(bytes_read==size)
+                    {
+                        txoutBuffer->Add(CDBRow,CDBRow+CS_DCT_CDB_KEY_SIZE);
+                    }
+                }
+            }
+            
+            delete txoutBuffer;
+ */ 
+            while(bytes_read==size)                                                 // Deleting spent txouts
+            {
+                bytes_read=read(fHan,CDBRow,size);        
+                if(bytes_read==size)
+                {
+                    if(IsPureBTC((cs_char*)CDBRow))
+                    {
+                        g_State->m_BlockDeleteCount+=1;
+                        err=g_State->m_AssetDB->Delete((cs_char*)CDBRow,CS_DCT_CDB_KEY_SIZE,0);
+                    }
+                    else
+                    {
+                        bitcoin_hash_to_string(msg,CDBRow);
+                        sprintf(msg+64,"-%d %d-%d-%d",
+                            (cs_int32)cs_GetUInt64LittleEndian((cs_char*)CDBRow+CS_DCT_HASH_BYTES+0,4),
+                            (cs_int32)cs_GetUInt64LittleEndian((cs_char*)CDBRow+CS_DCT_HASH_BYTES+4,4),
+                            (cs_int32)cs_GetUInt64LittleEndian((cs_char*)CDBRow+CS_DCT_HASH_BYTES+8,4),
+                            (cs_int32)cs_GetUInt64LittleEndian((cs_char*)CDBRow+CS_DCT_HASH_BYTES+12,4)
+                            );
+                        cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0110","Transaction output is not deleted, asset value is found",msg);  //LASTLOG                                 
+                    }
+                    
+                    if(err)
+                    {
+                        g_State->m_AssetDB->UnLock();
+                        return err;
+                    }
+                }
+            }
+/*            
             while(bytes_read==size)                                                 // Deleting spent txouts
             {
                 bytes_read=read(fHan,CDBRow,size);        
@@ -266,6 +398,7 @@ cs_int32 PurgeBlock(cs_int32 block)
                     }
                 }
             }
+ */ 
             close(fHan);
             g_State->m_AssetDB->Commit(0);
             g_State->m_AssetDB->UnLock();
@@ -305,13 +438,14 @@ cs_int32 PurgeBlock(cs_int32 block)
 
 cs_int32 StoreTXsInDB(cs_int32 block,cs_int32 txcount,cs_int32 remove_offset,cs_int32 add_offset)
 {
-    cs_int32 err,i,j,count,size,bytes_written;
+    cs_int32 err,i,j,count,size,bytes_written,is_pure_btc;
     cs_char *ptr;
     cs_char filename[CS_DCT_MAX_PATH];
     cs_char command[CS_DCT_MAX_PATH];
     cs_int32 group;
     cs_int32 fHan;
     cs_char  Out[65];    
+    
     
     cs_char msg[100];
     
@@ -405,7 +539,22 @@ cs_int32 StoreTXsInDB(cs_int32 block,cs_int32 txcount,cs_int32 remove_offset,cs_
         bitcoin_hash_to_string(Out,(cs_uchar*)ptr);
         sprintf(msg,"%s - %d",Out,(cs_int32)cs_GetUInt64LittleEndian(ptr+32,4));
         cs_LogMessage(g_Log,CS_LOG_MINOR,"C-0048","Spending txout",msg);            
-        if(block>g_State->m_BlockChainHeight-2*CS_DCT_BLOCK_PURGE_DELAY)
+        
+        is_pure_btc=IsPureBTC((cs_char*)ptr);
+        if(is_pure_btc == 0)
+        {
+            bitcoin_hash_to_string(msg,(cs_uchar*)ptr);
+            sprintf(msg+64,"-%d %d-%d-%d",
+                (cs_int32)cs_GetUInt64LittleEndian((cs_char*)ptr+CS_DCT_HASH_BYTES+0,4),
+                (cs_int32)cs_GetUInt64LittleEndian((cs_char*)ptr+CS_DCT_HASH_BYTES+4,4),
+                (cs_int32)cs_GetUInt64LittleEndian((cs_char*)ptr+CS_DCT_HASH_BYTES+8,4),
+                (cs_int32)cs_GetUInt64LittleEndian((cs_char*)ptr+CS_DCT_HASH_BYTES+12,4)
+                );
+
+            cs_LogMessage(g_Log,CS_LOG_REPORT,"C-0109","Transaction output is not deleted, asset value is found",msg);                              
+        }
+        
+        if((block>g_State->m_BlockChainHeight-2*CS_DCT_BLOCK_PURGE_DELAY) || (is_pure_btc == 0))
         {
             g_State->m_BlockUpdateCount+=1;
             err=g_State->m_AssetDB->Write(ptr,CS_DCT_CDB_KEY_SIZE,ptr+CS_DCT_CDB_KEY_SIZE,CS_DCT_CDB_VALUE_SIZE,0);
@@ -456,11 +605,14 @@ cs_int32 StoreTXsInDB(cs_int32 block,cs_int32 txcount,cs_int32 remove_offset,cs_
         for(i=remove_offset;i<count;i++)                                        
         {
             ptr=(cs_char*)(g_State->m_TxOutRemove->GetRow(i));
-            err=g_State->m_AssetDB->Delete(ptr,CS_DCT_CDB_KEY_SIZE,0);
-            if(err)
+            if(IsPureBTC((cs_char*)ptr))
             {
-                return err;
-            }            
+                err=g_State->m_AssetDB->Delete(ptr,CS_DCT_CDB_KEY_SIZE,0);
+                if(err)
+                {
+                    return err;
+                }            
+            }
         }
     }
     

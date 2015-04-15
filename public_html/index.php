@@ -59,6 +59,8 @@
     define("CS_PRT_DB_SHMEM_ROW_RESPONSE_NOT_NULL",                       2);
     define("CS_PRT_DB_SHMEM_ROW_RESPONSE_ERROR",                         16);
 
+    define("CS_MEMPOOL_BLOCK",                                   1234567890);
+    
     define("CS_DCT_CDB_GENESIS_TX_ASSET_MAP",                          0x01);
     define("CS_DCT_CDB_GENESIS_METADATA",                              0x02);
     define("CS_DCT_CDB_BLOCK_BY_HASH",                                 0x03);
@@ -515,6 +517,8 @@
                 
                 
                 $response['result']=array();
+                $response['result']['assets_balances']=array();
+                $response['result']['assets_info']=array();
                 $assets=array();
                 
                 foreach($txouts as $txkey=>$txout)
@@ -554,6 +558,10 @@
                                         $block=intval($arr[1]);
                                         $arr=unpack('V', substr($value,12,4));
                                         $spent=intval($arr[1]);                                        
+                                        if($spent == 0)
+                                        {
+                                            $spent=-1;
+                                        }
                                         $result=array(
                                             'txid' => $txout->txid,
                                             'vout' => $txout->vout,
@@ -575,7 +583,7 @@
                                 }
                             }
                             
-                            $response['result'][]=array_to_object($result);                            
+                            $response['result']['assets_balances'][]=array_to_object($result);                            
                         }
                     }
                 }
@@ -618,18 +626,29 @@
                         $txid=swap_bytes(substr($asset_def,8+$metasize,32));
                         $full_assetref=substr($assetref,0,  strrpos($assetref, "-")+1);
                         $full_assetref.=ord(substr($txid,1))*256+ord(substr($txid,0));
+                        $arr=explode("-",$full_assetref);
+                        if($arr[0] == CS_MEMPOOL_BLOCK)
+                        {
+                            $full_assetref="?-".$arr[1]."-".$arr[2];
+                        }
                         $assets[$assetref]=$full_assetref;
+                        
+                        $response['result']['assets_info'][]=array(
+                            'assetref' => $assets[$assetref],
+                            'genesis_txid' => reset(unpack('H*',$txid)),
+                            'genesis_metadata' => reset(unpack('H*',substr($asset_def,8,$metasize))),
+                        );
                     }
                 }            
               
-                foreach($response['result'] as $key=>$result)
+                foreach($response['result']['assets_balances'] as $key=>$result)
                 {
                     foreach(array_keys($result->assets) as $assetref)
                     {
                         if($assets[$assetref]!=$assetref)
                         {
-                            $response['result'][$key]->assets[$assets[$assetref]]=$result->assets[$assetref];
-                            unset($response['result'][$key]->assets[$assetref]);
+                            $response['result']['assets_balances'][$key]->assets[$assets[$assetref]]=$result->assets[$assetref];
+                            unset($response['result']['assets_balances'][$key]->assets[$assetref]);
                         }
                     }
                 }

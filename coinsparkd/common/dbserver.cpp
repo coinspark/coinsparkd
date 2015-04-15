@@ -323,7 +323,7 @@ cs_int32 DBShMemReadServerLoop(void *ThreadData)
                                 if(row == ((cs_int32)(uiptr[CS_OFF_DB_SHMEM_SLOT_ROW_COUNT])-1))
                                 {
                                     sprintf(msg,"Slot: %3d; PID: %6d; Rows: %3d;",slot,(cs_int32)(uiptr[CS_OFF_DB_SHMEM_SLOT_PROCESS_ID]),nncount);
-                                    cs_LogMessage(db->m_Log,CS_LOG_REPORT,"C-0108","Read all request",msg);        // LASTLOG                               
+                                    cs_LogMessage(db->m_Log,CS_LOG_REPORT,"C-0108","Read all request",msg);                          
                                 }
                                 break;
                             case CS_PRT_DB_SHMEM_ROW_REQUEST_READ:
