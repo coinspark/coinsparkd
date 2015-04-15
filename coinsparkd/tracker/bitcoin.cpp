@@ -450,14 +450,26 @@ cs_int32 bitcoin_find_op_return(cs_uchar *script,cs_int32 size)
                 {
                     if(*ptr==76)
                     {
+                        if(ptr+1 >= ptrEnd)
+                        {
+                            return ptrEnd-script;
+                        }
                         ptr+=*(ptr+1)+1;
                     }
                     if(*ptr==77)
                     {
+                        if(ptr+2 >= ptrEnd)
+                        {
+                            return ptrEnd-script;
+                        }
                         ptr+=cs_GetUInt64LittleEndian(ptr+1,2)+2;
                     }
                     if(*ptr==78)
                     {
+                        if(ptr+4 >= ptrEnd)
+                        {
+                            return ptrEnd-script;
+                        }
                         ptr+=cs_GetUInt64LittleEndian(ptr+1,4)+4;
                     }
                 }
